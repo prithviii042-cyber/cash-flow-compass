@@ -4,10 +4,80 @@
 
 @layer base {
   :root {
-    /* Treasury Dark Theme - Professional Finance Aesthetic */
+    /* Professional Light Theme - Clean Finance Aesthetic */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 215 90% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 215 90% 45%;
+
+    --radius: 0.5rem;
+
+    /* Custom Treasury Colors */
+    --inflow: 142 71% 35%;
+    --outflow: 0 72% 51%;
+    --neutral: 220 9% 46%;
+    
+    /* Liquidity Indicators */
+    --liquidity-green: 142 71% 35%;
+    --liquidity-amber: 38 92% 45%;
+    --liquidity-red: 0 72% 51%;
+
+    /* Business Unit Colors */
+    --aviation: 199 89% 40%;
+    --marine: 173 80% 35%;
+    --land: 142 71% 40%;
+    --trading: 280 68% 50%;
+
+    --sidebar-background: 220 14% 97%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 215 90% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 92%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 215 90% 45%;
+
+    /* Chart Colors */
+    --chart-1: 215 90% 45%;
+    --chart-2: 199 89% 40%;
+    --chart-3: 280 68% 50%;
+    --chart-4: 38 92% 45%;
+    --chart-5: 142 71% 40%;
+  }
+
+  .dark {
     --background: 222 47% 8%;
     --foreground: 210 40% 96%;
-
+    
     --card: 222 47% 11%;
     --card-foreground: 210 40% 96%;
 
@@ -26,57 +96,9 @@
     --accent: 222 47% 20%;
     --accent-foreground: 210 40% 96%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-
-    --success: 160 84% 39%;
-    --success-foreground: 222 47% 8%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 8%;
-
     --border: 222 30% 20%;
     --input: 222 30% 18%;
     --ring: 173 80% 40%;
-
-    --radius: 0.5rem;
-
-    /* Custom Treasury Colors */
-    --inflow: 160 84% 39%;
-    --outflow: 0 72% 51%;
-    --neutral: 222 30% 50%;
-    
-    /* Liquidity Indicators */
-    --liquidity-green: 160 84% 39%;
-    --liquidity-amber: 38 92% 50%;
-    --liquidity-red: 0 72% 51%;
-
-    /* Business Unit Colors */
-    --aviation: 199 89% 48%;
-    --marine: 173 80% 40%;
-    --land: 142 71% 45%;
-    --trading: 280 68% 60%;
-
-    --sidebar-background: 222 47% 6%;
-    --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 173 80% 40%;
-    --sidebar-primary-foreground: 222 47% 8%;
-    --sidebar-accent: 222 47% 14%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 173 80% 40%;
-
-    /* Chart Colors */
-    --chart-1: 173 80% 40%;
-    --chart-2: 199 89% 48%;
-    --chart-3: 280 68% 60%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 142 71% 45%;
-  }
-
-  .dark {
-    --background: 222 47% 8%;
-    --foreground: 210 40% 96%;
   }
 }
 
@@ -93,7 +115,7 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/50 backdrop-blur-xl border border-border/50 shadow-2xl;
+    @apply bg-card backdrop-blur-xl border border-border shadow-sm;
   }
 
   .metric-card {
@@ -105,15 +127,15 @@
   }
 
   .status-green {
-    @apply bg-[hsl(var(--liquidity-green))] shadow-[0_0_12px_hsl(var(--liquidity-green)/0.5)];
+    @apply bg-[hsl(var(--liquidity-green))] shadow-[0_0_12px_hsl(var(--liquidity-green)/0.4)];
   }
 
   .status-amber {
-    @apply bg-[hsl(var(--liquidity-amber))] shadow-[0_0_12px_hsl(var(--liquidity-amber)/0.5)];
+    @apply bg-[hsl(var(--liquidity-amber))] shadow-[0_0_12px_hsl(var(--liquidity-amber)/0.4)];
   }
 
   .status-red {
-    @apply bg-[hsl(var(--liquidity-red))] shadow-[0_0_12px_hsl(var(--liquidity-red)/0.5)];
+    @apply bg-[hsl(var(--liquidity-red))] shadow-[0_0_12px_hsl(var(--liquidity-red)/0.4)];
   }
 
   .data-table {
@@ -121,7 +143,7 @@
   }
 
   .data-table th {
-    @apply text-left text-muted-foreground font-medium py-3 px-4 border-b border-border bg-muted/30;
+    @apply text-left text-muted-foreground font-medium py-3 px-4 border-b border-border bg-muted/50;
   }
 
   .data-table td {
@@ -129,15 +151,15 @@
   }
 
   .data-table tr:hover td {
-    @apply bg-accent/30;
+    @apply bg-accent/50;
   }
 
   .upload-zone {
-    @apply border-2 border-dashed border-border rounded-xl p-12 text-center transition-all duration-300 hover:border-primary/50 hover:bg-accent/20 cursor-pointer;
+    @apply border-2 border-dashed border-border rounded-xl p-12 text-center transition-all duration-300 hover:border-primary/50 hover:bg-accent/30 cursor-pointer;
   }
 
   .upload-zone.active {
-    @apply border-primary bg-primary/10;
+    @apply border-primary bg-primary/5;
   }
 
   .nav-link {
@@ -153,19 +175,19 @@
   }
 
   .bu-aviation {
-    @apply bg-[hsl(var(--aviation)/0.15)] text-[hsl(var(--aviation))];
+    @apply bg-[hsl(var(--aviation)/0.1)] text-[hsl(var(--aviation))];
   }
 
   .bu-marine {
-    @apply bg-[hsl(var(--marine)/0.15)] text-[hsl(var(--marine))];
+    @apply bg-[hsl(var(--marine)/0.1)] text-[hsl(var(--marine))];
   }
 
   .bu-land {
-    @apply bg-[hsl(var(--land)/0.15)] text-[hsl(var(--land))];
+    @apply bg-[hsl(var(--land)/0.1)] text-[hsl(var(--land))];
   }
 
   .bu-trading {
-    @apply bg-[hsl(var(--trading)/0.15)] text-[hsl(var(--trading))];
+    @apply bg-[hsl(var(--trading)/0.1)] text-[hsl(var(--trading))];
   }
 }
 

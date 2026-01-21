@@ -1,15 +1,72 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SimulationParams, ScenarioResult, ExternalIndicator, BUSINESS_UNIT_SENSITIVITY } from "@/types/simulation";
+import type { SimulationParams, ScenarioResult, ExternalIndicator } from "@/types/simulation";
 import { addDays, format, parseISO, startOfDay, differenceInDays } from "date-fns";
 
 const SENSITIVITY = {
-  aviation: { oil: 1.5, fx: 0.8, volatility: 1.2 },
-  marine: { oil: 0.8, fx: 1.3, volatility: 1.0 },
-  trading: { oil: 1.0, fx: 1.0, volatility: 1.8 },
-  land: { oil: 0.5, fx: 0.5, volatility: 0.6 },
+  Aviation: { oil: 1.5, fx: 0.8, volatility: 1.2 },
+  Marine: { oil: 0.8, fx: 1.3, volatility: 1.0 },
+  Trading: { oil: 1.0, fx: 1.0, volatility: 1.8 },
+  Land: { oil: 0.5, fx: 0.5, volatility: 0.6 },
 } as const;
 
 type BusinessUnit = keyof typeof SENSITIVITY;
+
+interface IndicatorImpact {
+  oilPriceMultiplier: number;
+  fxMultiplier: number;
+  paymentDelayDays: number;
+  collectionRateAdjustment: number;
+  macroMultiplier: number;
+}
+
+// Calculate dynamic impact from external indicators
+function calculateIndicatorImpact(indicators: ExternalIndicator[]): IndicatorImpact {
+  const impact: IndicatorImpact = {
+    oilPriceMultiplier: 1,
+    fxMultiplier: 1,
+    paymentDelayDays: 0,
+    collectionRateAdjustment: 0,
+    macroMultiplier: 1,
+  };
+
+  // Group indicators by type and calculate average adjustment
+  const oilIndicators = indicators.filter(i => i.indicator_type === 'oil');
+  const fxIndicators = indicators.filter(i => i.indicator_type === 'fx');
+  const paymentIndicators = indicators.filter(i => i.indicator_type === 'payment');
+  const macroIndicators = indicators.filter(i => i.indicator_type === 'macro');
+
+  // Oil: Average scenario adjustment affects costs
+  if (oilIndicators.length > 0) {
+    const avgOilAdjustment = oilIndicators.reduce((sum, i) => sum + i.scenario_adjustment, 0) / oilIndicators.length;
+    impact.oilPriceMultiplier = 1 + (avgOilAdjustment / 100);
+  }
+
+  // FX: Average scenario adjustment affects currency conversion
+  if (fxIndicators.length > 0) {
+    const avgFxAdjustment = fxIndicators.reduce((sum, i) => sum + i.scenario_adjustment, 0) / fxIndicators.length;
+    impact.fxMultiplier = 1 + (avgFxAdjustment / 100);
+  }
+
+  // Payment: Look for specific indicators
+  paymentIndicators.forEach(ind => {
+    const name = ind.indicator_name.toLowerCase();
+    if (name.includes('delay') || name.includes('days')) {
+      impact.paymentDelayDays += ind.scenario_adjustment;
+    }
+    if (name.includes('collection') || name.includes('rate')) {
+      impact.collectionRateAdjustment += ind.scenario_adjustment;
+    }
+  });
+
+  // Macro: GDP/Inflation affects overall confidence
+  if (macroIndicators.length > 0) {
+    const avgMacroAdjustment = macroIndicators.reduce((sum, i) => sum + i.scenario_adjustment, 0) / macroIndicators.length;
+    // Positive macro = slightly better collections, negative = worse
+    impact.macroMultiplier = 1 + (avgMacroAdjustment / 100) * 0.5;
+  }
+
+  return impact;
+}
 
 export async function runSimulation(params: SimulationParams): Promise<{
   inflows: number;
@@ -18,13 +75,32 @@ export async function runSimulation(params: SimulationParams): Promise<{
   liquidityRiskLevel: string;
   byBusinessUnit: Record<string, { inflows: number; outflows: number; netCash: number }>;
   dailyForecast: Array<{ date: string; inflows: number; outflows: number; netCash: number }>;
+  indicatorImpact?: IndicatorImpact;
 }> {
-  // Fetch AR aging data
-  const { data: arData } = await supabase.from('ar_aging').select('*');
-  const { data: apData } = await supabase.from('ap_aging').select('*');
-  const { data: patternsData } = await supabase.from('historical_patterns').select('*');
+  // Fetch all data in parallel
+  const [arResult, apResult, patternsResult, indicatorsResult] = await Promise.all([
+    supabase.from('ar_aging').select('*'),
+    supabase.from('ap_aging').select('*'),
+    supabase.from('historical_patterns').select('*'),
+    supabase.from('external_indicators').select('*'),
+  ]);
 
-  const patterns = (patternsData || []).reduce((acc, p) => {
+  const arData = arResult.data || [];
+  const apData = apResult.data || [];
+  const patternsData = patternsResult.data || [];
+  const indicatorsData: ExternalIndicator[] = (indicatorsResult.data || []).map(d => ({
+    id: d.id,
+    indicator_name: d.indicator_name,
+    indicator_type: d.indicator_type as 'payment' | 'oil' | 'fx' | 'macro',
+    base_value: Number(d.base_value),
+    scenario_adjustment: Number(d.scenario_adjustment),
+    effective_date: d.effective_date,
+  }));
+
+  // Calculate dynamic indicator impact
+  const indicatorImpact = calculateIndicatorImpact(indicatorsData);
+
+  const patterns = patternsData.reduce((acc, p) => {
     const key = `${p.business_unit}-${p.aging_bucket}`;
     acc[key] = { probability: Number(p.collection_probability), avgDaysLate: p.avg_days_late || 0 };
     return acc;
@@ -42,9 +118,9 @@ export async function runSimulation(params: SimulationParams): Promise<{
   }
 
   // Process AR (inflows)
-  (arData || []).forEach(ar => {
+  arData.forEach(ar => {
     const bu = ar.business_unit as BusinessUnit;
-    const sensitivity = SENSITIVITY[bu] || SENSITIVITY.land;
+    const sensitivity = SENSITIVITY[bu] || SENSITIVITY.Land;
     
     // Calculate aging bucket
     const dueDate = parseISO(ar.due_date);
@@ -58,16 +134,30 @@ export async function runSimulation(params: SimulationParams): Promise<{
 
     const pattern = patterns[`${bu}-${bucket}`] || { probability: 0.9, avgDaysLate: 0 };
     
-    // Apply simulation adjustments
-    const adjustedProbability = Math.min(1, Math.max(0, 
-      pattern.probability * (params.collectionEfficiencyAdjustment / 100)
-    ));
-    const adjustedDaysLate = pattern.avgDaysLate + params.customerPaymentDelayDays;
-    const fxAdjustment = 1 + (params.fxChange / 100) * sensitivity.fx;
-    const oilAdjustment = 1 + (params.oilPriceChange / 100) * sensitivity.oil * 0.1; // Oil affects costs indirectly
+    // Apply simulation adjustments + external indicator impacts
+    const baseEfficiency = params.collectionEfficiencyAdjustment / 100;
+    const indicatorCollectionBoost = 1 + (indicatorImpact.collectionRateAdjustment / 100);
+    const macroEffect = indicatorImpact.macroMultiplier;
     
-    const adjustedAmount = Number(ar.outstanding_amount) * adjustedProbability * fxAdjustment * oilAdjustment * sensitivity.volatility;
-    const expectedDate = addDays(dueDate, adjustedDaysLate);
+    const adjustedProbability = Math.min(1, Math.max(0, 
+      pattern.probability * baseEfficiency * indicatorCollectionBoost * macroEffect
+    ));
+    
+    // Payment delays from both slider and indicators
+    const totalDelayDays = pattern.avgDaysLate + params.customerPaymentDelayDays + indicatorImpact.paymentDelayDays;
+    
+    // FX adjustment: combine slider + external indicators
+    const sliderFxEffect = 1 + (params.fxChange / 100) * sensitivity.fx;
+    const indicatorFxEffect = Math.pow(indicatorImpact.fxMultiplier, sensitivity.fx);
+    const totalFxAdjustment = sliderFxEffect * indicatorFxEffect;
+    
+    // Oil adjustment for inflows (indirect effect on customer purchasing power)
+    const sliderOilEffect = 1 + (params.oilPriceChange / 100) * sensitivity.oil * 0.1;
+    const indicatorOilEffect = 1 + (indicatorImpact.oilPriceMultiplier - 1) * sensitivity.oil * 0.1;
+    const totalOilAdjustment = sliderOilEffect * indicatorOilEffect;
+    
+    const adjustedAmount = Number(ar.outstanding_amount) * adjustedProbability * totalFxAdjustment * totalOilAdjustment * sensitivity.volatility;
+    const expectedDate = addDays(dueDate, Math.round(totalDelayDays));
     const dateKey = format(expectedDate, 'yyyy-MM-dd');
     
     if (dailyData[dateKey]) {
@@ -82,14 +172,21 @@ export async function runSimulation(params: SimulationParams): Promise<{
   });
 
   // Process AP (outflows)
-  (apData || []).forEach(ap => {
+  apData.forEach(ap => {
     const bu = ap.business_unit as BusinessUnit;
-    const sensitivity = SENSITIVITY[bu] || SENSITIVITY.land;
+    const sensitivity = SENSITIVITY[bu] || SENSITIVITY.Land;
     
-    const fxAdjustment = 1 + (params.fxChange / 100) * sensitivity.fx;
-    const oilAdjustment = 1 + (params.oilPriceChange / 100) * sensitivity.oil;
+    // FX adjustment: combine slider + external indicators
+    const sliderFxEffect = 1 + (params.fxChange / 100) * sensitivity.fx;
+    const indicatorFxEffect = Math.pow(indicatorImpact.fxMultiplier, sensitivity.fx);
+    const totalFxAdjustment = sliderFxEffect * indicatorFxEffect;
     
-    const adjustedAmount = Number(ap.outstanding_amount) * fxAdjustment * oilAdjustment;
+    // Oil adjustment: direct impact on fuel/commodity costs
+    const sliderOilEffect = 1 + (params.oilPriceChange / 100) * sensitivity.oil;
+    const indicatorOilEffect = Math.pow(indicatorImpact.oilPriceMultiplier, sensitivity.oil);
+    const totalOilAdjustment = sliderOilEffect * indicatorOilEffect;
+    
+    const adjustedAmount = Number(ap.outstanding_amount) * totalFxAdjustment * totalOilAdjustment;
     const dueDate = parseISO(ap.due_date);
     const dateKey = format(dueDate, 'yyyy-MM-dd');
     
@@ -138,6 +235,7 @@ export async function runSimulation(params: SimulationParams): Promise<{
     liquidityRiskLevel,
     byBusinessUnit,
     dailyForecast,
+    indicatorImpact,
   };
 }
 

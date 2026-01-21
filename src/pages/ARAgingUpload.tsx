@@ -1,24 +1,58 @@
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FileUploadZone } from '@/components/upload/FileUploadZone';
 import { UploadStatusBadge } from '@/components/upload/UploadStatusBadge';
 import { UploadValidation } from '@/types/cashflow';
-import { mockARRecords } from '@/data/mockData';
+import { useARAgingRecords, useInsertARAgingRecords } from '@/hooks/useDataHooks';
+import { validateARUpload, calculateAgingBucket } from '@/services/dataService';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, FileSpreadsheet, Info } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Info, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
+
+type DBBusinessUnit = Database['public']['Enums']['business_unit'];
 
 export default function ARAgingUpload() {
-  const handleUpload = async (file: File): Promise<UploadValidation> => {
-    // Simulate processing delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  const { data: arRecords, isLoading } = useARAgingRecords();
+  const insertMutation = useInsertARAgingRecords();
+  const [lastUploadDate, setLastUploadDate] = useState<Date | null>(null);
 
-    // Mock validation
-    return {
-      success: true,
-      errors: [],
-      warnings: ['2 AR records have no matching CONTRACT_TERMS entry'],
-      recordCount: 156,
-    };
+  useEffect(() => {
+    if (arRecords && arRecords.length > 0) {
+      const latestRecord = arRecords.reduce((latest, record) => {
+        const recordDate = new Date(record.created_at);
+        return recordDate > latest ? recordDate : latest;
+      }, new Date(0));
+      setLastUploadDate(latestRecord);
+    }
+  }, [arRecords]);
+
+  const handleUpload = async (file: File): Promise<UploadValidation> => {
+    // For now, simulate parsing - in production you'd use a CSV/Excel parser
+    // This demonstrates the validation and insert flow
+    const mockParsedRecords = [
+      {
+        customer_id: 'CUST-NEW-001',
+        business_unit: 'Aviation' as DBBusinessUnit,
+        invoice_id: `INV-${Date.now()}`,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        currency: 'USD',
+        invoice_amount: 1500000,
+        outstanding_amount: 1500000,
+      },
+    ];
+
+    // Validate before inserting
+    const validation = await validateARUpload(mockParsedRecords);
+    
+    if (!validation.success) {
+      return validation;
+    }
+
+    // Insert records
+    const result = await insertMutation.mutateAsync(mockParsedRecords);
+    return result;
   };
 
   const formatCurrency = (value: number) => {
@@ -41,7 +75,7 @@ export default function ARAgingUpload() {
   };
 
   const getAgingClass = (bucket: string) => {
-    if (bucket === '0-30') return 'text-success';
+    if (bucket === 'Current' || bucket === '0-30') return 'text-success';
     if (bucket === '31-60') return 'text-warning';
     return 'text-destructive';
   };
@@ -49,7 +83,6 @@ export default function ARAgingUpload() {
   return (
     <MainLayout>
       <div className="space-y-8">
-        {/* Header */}
         <div>
           <Link
             to="/"
@@ -65,7 +98,6 @@ export default function ARAgingUpload() {
         </div>
 
         <div className="grid grid-cols-3 gap-6">
-          {/* Upload Zone */}
           <div className="col-span-2">
             <FileUploadZone
               title="AR Aging Report"
@@ -74,7 +106,6 @@ export default function ARAgingUpload() {
               onUpload={handleUpload}
             />
 
-            {/* Required Fields Info */}
             <div className="mt-6 bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Info className="w-5 h-5 text-primary" />
@@ -124,13 +155,12 @@ export default function ARAgingUpload() {
             </div>
           </div>
 
-          {/* Status & Preview */}
           <div className="space-y-6">
             <UploadStatusBadge
-              status="success"
+              status={arRecords && arRecords.length > 0 ? 'success' : 'pending'}
               label="AR Aging Data"
-              lastUpdated={new Date('2025-01-20T10:30:00')}
-              recordCount={156}
+              lastUpdated={lastUploadDate || undefined}
+              recordCount={arRecords?.length || 0}
             />
 
             <div className="bg-card border border-border rounded-xl p-6">
@@ -138,37 +168,52 @@ export default function ARAgingUpload() {
                 <FileSpreadsheet className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold text-foreground">Current Data Preview</h3>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                {mockARRecords.length} records loaded
-              </p>
-
-              <div className="space-y-3">
-                {mockARRecords.slice(0, 4).map((record) => (
-                  <div
-                    key={record.id}
-                    className="p-3 rounded-lg bg-accent/30 text-sm"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-foreground">{record.customerId}</span>
-                      <span className={cn('bu-badge', getBuBadgeClass(record.businessUnit))}>
-                        {record.businessUnit}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>{record.invoiceId}</span>
-                      <span className="number-mono">{formatCurrency(record.outstandingAmount)}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        Due: {record.dueDate.toLocaleDateString()}
-                      </span>
-                      <span className={cn('text-xs font-medium', getAgingClass(record.agingBucket))}>
-                        {record.agingBucket} days
-                      </span>
-                    </div>
+              
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : arRecords && arRecords.length > 0 ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {arRecords.length} records loaded
+                  </p>
+                  <div className="space-y-3">
+                    {arRecords.slice(0, 4).map((record) => {
+                      const agingBucket = calculateAgingBucket(new Date(record.due_date));
+                      return (
+                        <div
+                          key={record.id}
+                          className="p-3 rounded-lg bg-accent/30 text-sm"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-foreground">{record.customer_id}</span>
+                            <span className={cn('bu-badge', getBuBadgeClass(record.business_unit))}>
+                              {record.business_unit}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span>{record.invoice_id}</span>
+                            <span className="number-mono">{formatCurrency(Number(record.outstanding_amount))}</span>
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-muted-foreground">
+                              Due: {new Date(record.due_date).toLocaleDateString()}
+                            </span>
+                            <span className={cn('text-xs font-medium', getAgingClass(agingBucket))}>
+                              {agingBucket} days
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No AR aging data uploaded yet
+                </p>
+              )}
             </div>
           </div>
         </div>

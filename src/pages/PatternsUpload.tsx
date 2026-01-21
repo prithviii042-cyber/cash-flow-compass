@@ -1,21 +1,49 @@
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FileUploadZone } from '@/components/upload/FileUploadZone';
 import { UploadStatusBadge } from '@/components/upload/UploadStatusBadge';
 import { UploadValidation } from '@/types/cashflow';
-import { mockHistoricalPatterns } from '@/data/mockData';
+import { useHistoricalPatterns, useInsertHistoricalPatterns } from '@/hooks/useDataHooks';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, FileSpreadsheet, Info, BarChart3 } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Info, BarChart3, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
+
+type DBBusinessUnit = Database['public']['Enums']['business_unit'];
 
 export default function PatternsUpload() {
+  const { data: patterns, isLoading } = useHistoricalPatterns();
+  const insertMutation = useInsertHistoricalPatterns();
+  const [lastUploadDate, setLastUploadDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (patterns && patterns.length > 0) {
+      const latestRecord = patterns.reduce((latest, record) => {
+        const recordDate = new Date(record.created_at);
+        return recordDate > latest ? recordDate : latest;
+      }, new Date(0));
+      setLastUploadDate(latestRecord);
+    }
+  }, [patterns]);
+
   const handleUpload = async (file: File): Promise<UploadValidation> => {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    return {
-      success: true,
-      errors: [],
-      warnings: [],
-      recordCount: 28,
-    };
+    const mockParsedRecords = [
+      {
+        business_unit: 'Aviation' as DBBusinessUnit,
+        aging_bucket: '0-30',
+        collection_probability: 0.95,
+        avg_days_late: 3,
+      },
+      {
+        business_unit: 'Aviation' as DBBusinessUnit,
+        aging_bucket: '31-60',
+        collection_probability: 0.88,
+        avg_days_late: 8,
+      },
+    ];
+
+    const result = await insertMutation.mutateAsync(mockParsedRecords);
+    return result;
   };
 
   const getBuBadgeClass = (bu: string) => {
@@ -89,7 +117,6 @@ export default function PatternsUpload() {
               </div>
             </div>
 
-            {/* Pattern Explanation */}
             <div className="mt-6 bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 className="w-5 h-5 text-primary" />
@@ -112,10 +139,10 @@ export default function PatternsUpload() {
 
           <div className="space-y-6">
             <UploadStatusBadge
-              status="success"
+              status={patterns && patterns.length > 0 ? 'success' : 'pending'}
               label="Historical Patterns"
-              lastUpdated={new Date('2025-01-15T11:30:00')}
-              recordCount={28}
+              lastUpdated={lastUploadDate || undefined}
+              recordCount={patterns?.length || 0}
             />
 
             <div className="bg-card border border-border rounded-xl p-6">
@@ -123,37 +150,49 @@ export default function PatternsUpload() {
                 <FileSpreadsheet className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold text-foreground">Current Patterns</h3>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                {mockHistoricalPatterns.length} patterns loaded
-              </p>
-
-              <div className="space-y-3">
-                {mockHistoricalPatterns.map((pattern) => (
-                  <div
-                    key={pattern.id}
-                    className="p-3 rounded-lg bg-accent/30 text-sm"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={cn('bu-badge', getBuBadgeClass(pattern.businessUnit))}>
-                        {pattern.businessUnit}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-muted text-xs text-muted-foreground">
-                        {pattern.agingBucket} days
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Collection Prob.</span>
-                      <span className={cn('font-medium number-mono', getProbabilityColor(pattern.collectionProbability))}>
-                        {(pattern.collectionProbability * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-muted-foreground">Avg Days Late</span>
-                      <span className="text-foreground number-mono">+{pattern.avgDaysLate}</span>
-                    </div>
+              
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : patterns && patterns.length > 0 ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {patterns.length} patterns loaded
+                  </p>
+                  <div className="space-y-3">
+                    {patterns.slice(0, 6).map((pattern) => (
+                      <div
+                        key={pattern.id}
+                        className="p-3 rounded-lg bg-accent/30 text-sm"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={cn('bu-badge', getBuBadgeClass(pattern.business_unit))}>
+                            {pattern.business_unit}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-muted text-xs text-muted-foreground">
+                            {pattern.aging_bucket} days
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Collection Prob.</span>
+                          <span className={cn('font-medium number-mono', getProbabilityColor(Number(pattern.collection_probability)))}>
+                            {(Number(pattern.collection_probability) * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-muted-foreground">Avg Days Late</span>
+                          <span className="text-foreground number-mono">+{pattern.avg_days_late || 0}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No historical patterns uploaded yet
+                </p>
+              )}
             </div>
           </div>
         </div>

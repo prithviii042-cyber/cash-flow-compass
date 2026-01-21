@@ -1,21 +1,54 @@
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FileUploadZone } from '@/components/upload/FileUploadZone';
 import { UploadStatusBadge } from '@/components/upload/UploadStatusBadge';
 import { UploadValidation } from '@/types/cashflow';
-import { mockAPRecords } from '@/data/mockData';
+import { useAPAgingRecords, useInsertAPAgingRecords } from '@/hooks/useDataHooks';
+import { validateAPUpload } from '@/services/dataService';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, FileSpreadsheet, Info, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { Database } from '@/integrations/supabase/types';
+
+type DBBusinessUnit = Database['public']['Enums']['business_unit'];
 
 export default function APAgingUpload() {
+  const { data: apRecords, isLoading } = useAPAgingRecords();
+  const insertMutation = useInsertAPAgingRecords();
+  const [lastUploadDate, setLastUploadDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (apRecords && apRecords.length > 0) {
+      const latestRecord = apRecords.reduce((latest, record) => {
+        const recordDate = new Date(record.created_at);
+        return recordDate > latest ? recordDate : latest;
+      }, new Date(0));
+      setLastUploadDate(latestRecord);
+    }
+  }, [apRecords]);
+
   const handleUpload = async (file: File): Promise<UploadValidation> => {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    return {
-      success: true,
-      errors: [],
-      warnings: [],
-      recordCount: 89,
-    };
+    const mockParsedRecords = [
+      {
+        vendor_id: 'VEND-NEW-001',
+        business_unit: 'Marine' as DBBusinessUnit,
+        invoice_id: `AP-${Date.now()}`,
+        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        currency: 'USD',
+        invoice_amount: 2200000,
+        outstanding_amount: 2200000,
+        critical_flag: false,
+      },
+    ];
+
+    const validation = await validateAPUpload(mockParsedRecords);
+    
+    if (!validation.success) {
+      return validation;
+    }
+
+    const result = await insertMutation.mutateAsync(mockParsedRecords);
+    return result;
   };
 
   const formatCurrency = (value: number) => {
@@ -111,10 +144,10 @@ export default function APAgingUpload() {
 
           <div className="space-y-6">
             <UploadStatusBadge
-              status="success"
+              status={apRecords && apRecords.length > 0 ? 'success' : 'pending'}
               label="AP Aging Data"
-              lastUpdated={new Date('2025-01-20T09:15:00')}
-              recordCount={89}
+              lastUpdated={lastUploadDate || undefined}
+              recordCount={apRecords?.length || 0}
             />
 
             <div className="bg-card border border-border rounded-xl p-6">
@@ -122,42 +155,54 @@ export default function APAgingUpload() {
                 <FileSpreadsheet className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold text-foreground">Current Data Preview</h3>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                {mockAPRecords.length} records loaded
-              </p>
-
-              <div className="space-y-3">
-                {mockAPRecords.map((record) => (
-                  <div
-                    key={record.id}
-                    className={cn(
-                      'p-3 rounded-lg text-sm',
-                      record.criticalFlag ? 'bg-destructive/10 border border-destructive/30' : 'bg-accent/30'
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">{record.vendorId}</span>
-                        {record.criticalFlag && (
-                          <AlertTriangle className="w-4 h-4 text-destructive" />
+              
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : apRecords && apRecords.length > 0 ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {apRecords.length} records loaded
+                  </p>
+                  <div className="space-y-3">
+                    {apRecords.slice(0, 4).map((record) => (
+                      <div
+                        key={record.id}
+                        className={cn(
+                          'p-3 rounded-lg text-sm',
+                          record.critical_flag ? 'bg-destructive/10 border border-destructive/30' : 'bg-accent/30'
                         )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{record.vendor_id}</span>
+                            {record.critical_flag && (
+                              <AlertTriangle className="w-4 h-4 text-destructive" />
+                            )}
+                          </div>
+                          <span className={cn('bu-badge', getBuBadgeClass(record.business_unit))}>
+                            {record.business_unit}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>{record.invoice_id}</span>
+                          <span className="number-mono">{formatCurrency(Number(record.outstanding_amount))}</span>
+                        </div>
+                        <div className="mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            Due: {new Date(record.due_date).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                      <span className={cn('bu-badge', getBuBadgeClass(record.businessUnit))}>
-                        {record.businessUnit}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>{record.invoiceId}</span>
-                      <span className="number-mono">{formatCurrency(record.outstandingAmount)}</span>
-                    </div>
-                    <div className="mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        Due: {record.dueDate.toLocaleDateString()}
-                      </span>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No AP aging data uploaded yet
+                </p>
+              )}
             </div>
           </div>
         </div>

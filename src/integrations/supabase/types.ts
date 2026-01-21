@@ -143,6 +143,42 @@ export type Database = {
         }
         Relationships: []
       }
+      external_indicators: {
+        Row: {
+          base_value: number
+          created_at: string
+          effective_date: string
+          id: string
+          indicator_name: string
+          indicator_type: Database["public"]["Enums"]["indicator_type"]
+          scenario_adjustment: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          base_value: number
+          created_at?: string
+          effective_date: string
+          id?: string
+          indicator_name: string
+          indicator_type: Database["public"]["Enums"]["indicator_type"]
+          scenario_adjustment?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          base_value?: number
+          created_at?: string
+          effective_date?: string
+          id?: string
+          indicator_name?: string
+          indicator_type?: Database["public"]["Enums"]["indicator_type"]
+          scenario_adjustment?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       historical_patterns: {
         Row: {
           aging_bucket: string
@@ -200,6 +236,48 @@ export type Database = {
         }
         Relationships: []
       }
+      scenario_results: {
+        Row: {
+          created_at: string
+          id: string
+          inflows: number
+          liquidity_risk_level: string
+          net_cash: number
+          outflows: number
+          scenario_date: string
+          scenario_name: string
+          simulation_params: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inflows?: number
+          liquidity_risk_level?: string
+          net_cash?: number
+          outflows?: number
+          scenario_date: string
+          scenario_name: string
+          simulation_params?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inflows?: number
+          liquidity_risk_level?: string
+          net_cash?: number
+          outflows?: number
+          scenario_date?: string
+          scenario_name?: string
+          simulation_params?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -242,6 +320,7 @@ export type Database = {
       app_role: "treasury" | "fpa"
       business_unit: "Aviation" | "Marine" | "Land" | "Trading"
       contract_type: "Spot" | "Term"
+      indicator_type: "payment" | "oil" | "fx" | "macro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -372,6 +451,7 @@ export const Constants = {
       app_role: ["treasury", "fpa"],
       business_unit: ["Aviation", "Marine", "Land", "Trading"],
       contract_type: ["Spot", "Term"],
+      indicator_type: ["payment", "oil", "fx", "macro"],
     },
   },
 } as const

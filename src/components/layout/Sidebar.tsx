@@ -12,6 +12,7 @@ import {
   Ship,
   Truck,
   BarChart3,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Treasury Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Business Units', href: '/business-units', icon: Building2 },
   { name: 'Forecast Accuracy', href: '/accuracy', icon: FileBarChart },
+  { name: 'Simulation', href: '/simulation', icon: FlaskConical },
 ];
 
 const uploadItems = [

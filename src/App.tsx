@@ -12,6 +12,7 @@ import ARAgingUpload from "./pages/ARAgingUpload";
 import APAgingUpload from "./pages/APAgingUpload";
 import ContractsUpload from "./pages/ContractsUpload";
 import PatternsUpload from "./pages/PatternsUpload";
+import SimulationDashboard from "./pages/SimulationDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><TreasuryDashboard /></ProtectedRoute>} />
             <Route path="/business-units" element={<ProtectedRoute><BusinessUnits /></ProtectedRoute>} />
             <Route path="/accuracy" element={<ProtectedRoute><ForecastAccuracy /></ProtectedRoute>} />
+            <Route path="/simulation" element={<ProtectedRoute><SimulationDashboard /></ProtectedRoute>} />
             <Route path="/upload/ar-aging" element={<ProtectedRoute><ARAgingUpload /></ProtectedRoute>} />
             <Route path="/upload/ap-aging" element={<ProtectedRoute><APAgingUpload /></ProtectedRoute>} />
             <Route path="/upload/contracts" element={<ProtectedRoute><ContractsUpload /></ProtectedRoute>} />

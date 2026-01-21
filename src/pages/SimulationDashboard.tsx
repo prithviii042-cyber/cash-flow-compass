@@ -6,12 +6,21 @@ import { ScenarioComparison } from "@/components/simulation/ScenarioComparison";
 import { WaterfallChart } from "@/components/simulation/WaterfallChart";
 import { BusinessUnitSensitivity } from "@/components/simulation/BusinessUnitSensitivity";
 import { ExternalIndicators } from "@/components/simulation/ExternalIndicators";
+import { IndicatorImpactDisplay } from "@/components/simulation/IndicatorImpactDisplay";
 import { DEFAULT_SIMULATION_PARAMS, type SimulationParams, type ScenarioResult, type ExternalIndicator } from "@/types/simulation";
 import { runSimulation, saveScenario, getSavedScenarios, deleteScenario, getExternalIndicators, saveExternalIndicator } from "@/services/simulationService";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+interface IndicatorImpact {
+  oilPriceMultiplier: number;
+  fxMultiplier: number;
+  paymentDelayDays: number;
+  collectionRateAdjustment: number;
+  macroMultiplier: number;
+}
 
 export default function SimulationDashboard() {
   const { toast } = useToast();
@@ -22,6 +31,7 @@ export default function SimulationDashboard() {
   
   // External indicators
   const [indicators, setIndicators] = useState<ExternalIndicator[]>([]);
+  const [indicatorImpact, setIndicatorImpact] = useState<IndicatorImpact | null>(null);
   
   // Base results (no adjustments)
   const [baseResults, setBaseResults] = useState({
@@ -83,6 +93,7 @@ export default function SimulationDashboard() {
     try {
       const data = await runSimulation(params);
       setResults(data);
+      setIndicatorImpact(data.indicatorImpact || null);
       setHasRun(true);
       toast({
         title: "Simulation Complete",
@@ -215,6 +226,7 @@ export default function SimulationDashboard() {
               </div>
             ) : hasRun ? (
               <>
+                {indicatorImpact && <IndicatorImpactDisplay impact={indicatorImpact} />}
                 <SimulationResults
                   inflows={results.inflows}
                   outflows={results.outflows}

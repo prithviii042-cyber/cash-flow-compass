@@ -5,16 +5,23 @@ import { SimulationResults } from "@/components/simulation/SimulationResults";
 import { ScenarioComparison } from "@/components/simulation/ScenarioComparison";
 import { WaterfallChart } from "@/components/simulation/WaterfallChart";
 import { BusinessUnitSensitivity } from "@/components/simulation/BusinessUnitSensitivity";
-import { DEFAULT_SIMULATION_PARAMS, type SimulationParams, type ScenarioResult } from "@/types/simulation";
-import { runSimulation, saveScenario, getSavedScenarios, deleteScenario } from "@/services/simulationService";
+import { ExternalIndicators } from "@/components/simulation/ExternalIndicators";
+import { DEFAULT_SIMULATION_PARAMS, type SimulationParams, type ScenarioResult, type ExternalIndicator } from "@/types/simulation";
+import { runSimulation, saveScenario, getSavedScenarios, deleteScenario, getExternalIndicators, saveExternalIndicator } from "@/services/simulationService";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SimulationDashboard() {
   const { toast } = useToast();
+  const { isTreasury } = useAuth();
   const [params, setParams] = useState<SimulationParams>(DEFAULT_SIMULATION_PARAMS);
   const [isRunning, setIsRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
+  
+  // External indicators
+  const [indicators, setIndicators] = useState<ExternalIndicator[]>([]);
   
   // Base results (no adjustments)
   const [baseResults, setBaseResults] = useState({
@@ -37,9 +44,10 @@ export default function SimulationDashboard() {
   const [scenarios, setScenarios] = useState<ScenarioResult[]>([]);
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
 
-  // Load saved scenarios
+  // Load saved scenarios and indicators
   useEffect(() => {
     loadScenarios();
+    loadIndicators();
     runBaseSimulation();
   }, []);
 
@@ -49,6 +57,15 @@ export default function SimulationDashboard() {
       setScenarios(data);
     } catch (error) {
       console.error('Failed to load scenarios:', error);
+    }
+  };
+
+  const loadIndicators = async () => {
+    try {
+      const data = await getExternalIndicators();
+      setIndicators(data);
+    } catch (error) {
+      console.error('Failed to load indicators:', error);
     }
   };
 
@@ -124,6 +141,38 @@ export default function SimulationDashboard() {
     );
   };
 
+  const handleAddIndicator = async (indicator: Omit<ExternalIndicator, 'id'>) => {
+    try {
+      await saveExternalIndicator(indicator);
+      await loadIndicators();
+      toast({
+        title: "Indicator Added",
+        description: `"${indicator.indicator_name}" has been added.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to Add",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteIndicator = async (id: string) => {
+    try {
+      const { error } = await supabase.from('external_indicators').delete().eq('id', id);
+      if (error) throw error;
+      await loadIndicators();
+      toast({ title: "Indicator Deleted" });
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -149,6 +198,12 @@ export default function SimulationDashboard() {
               selectedScenarios={selectedScenarios}
               onSelectScenario={handleSelectScenario}
               onDeleteScenario={handleDeleteScenario}
+            />
+            <ExternalIndicators
+              indicators={indicators}
+              onAdd={handleAddIndicator}
+              onDelete={handleDeleteIndicator}
+              isTreasury={isTreasury}
             />
           </div>
 

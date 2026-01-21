@@ -55,7 +55,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/20 via-background to-accent/20 p-12 flex-col justify-between">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/10 via-accent/30 to-primary/5 p-12 flex-col justify-between border-r border-border">
         <div>
           <h1 className="text-3xl font-bold gradient-text">WKC Treasury</h1>
           <p className="text-muted-foreground mt-2">Cash Flow Forecasting Platform</p>

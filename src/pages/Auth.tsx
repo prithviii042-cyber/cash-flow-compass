@@ -9,6 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, TrendingUp, Shield, BarChart3 } from 'lucide-react';
 
+function isInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch (e) {
+    return true;
+  }
+}
+
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +26,7 @@ export default function Auth() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const inIframe = isInIframe();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +123,22 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {inIframe && (
+              <Alert className="mb-4 border-primary/30 bg-primary/10">
+                <AlertDescription>
+                  Authentication may not work inside an iframe.{' '}
+                  <a
+                    href={window.location.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold underline text-primary"
+                  >
+                    Open in a new tab
+                  </a>{' '}
+                  to sign in or sign up.
+                </AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>

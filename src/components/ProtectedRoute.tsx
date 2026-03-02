@@ -11,6 +11,12 @@ export function ProtectedRoute({ children, requireRole = true }: ProtectedRouteP
   const { user, isLoading, hasValidRole } = useAuth();
   const location = useLocation();
 
+  // Dev mode bypass - skip auth during development
+  const isDev = import.meta.env.DEV;
+  if (isDev) {
+    return <>{children}</>;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
